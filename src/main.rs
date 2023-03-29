@@ -27,7 +27,7 @@ struct Word {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Song {
-    lyrics: Vec<Lyrics>,
+    lyrics: Option<Vec<Lyrics>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -53,33 +53,42 @@ impl Writer for LyricWriter {
     }
 
     fn output_lyrics(&mut self, time: Time) {
-        let t = time.time;
-        let mut closest_line: Option<&Lyrics> = None;
 
-        // Iterate over each lyric line in the song
-        for line in self.song.lyrics.iter() {
-            // If the line's time is greater than the given time, exit the loop
-            if line.time > t {
-                break;
+        match &self.song.lyrics {
+            None => match self.index {
+                Some(_) => return,
+                None => { println!("No Lyrics found"); self.index = Some(1); return }
+            },
+            Some(lyrics) => {
+                let t = time.time;
+                let mut closest_line: Option<&Lyrics> = None;
+
+                // Iterate over each lyric line in the song
+                for line in lyrics.iter() {
+                    // If the line's time is greater than the given time, exit the loop
+                    if line.time > t {
+                        break;
+                    }
+                    // Otherwise, set this line as the closest so far
+                    closest_line = Some(line);
+                }
+
+                if let Some(line) = closest_line {
+                    let current_index = lyrics.iter().position(|lyrics| lyrics.time >= line.time).unwrap_or_default();
+                    if self.index != Some(current_index) {
+                        self.index = Some(current_index);
+                        println!("{:?}", line.to_line());
+                    }
+                } 
             }
-            // Otherwise, set this line as the closest so far
-            closest_line = Some(line);
         }
-
-        if let Some(line) = closest_line {
-            let current_index = self.song.lyrics.iter().position(|lyrics| lyrics.time >= line.time).unwrap_or_default();
-            if self.index != Some(current_index) {
-                self.index = Some(current_index);
-                println!("{:?}", line.to_line());
-            }
-        } 
     }
 }
 
 impl LyricWriter {
     fn new() -> Self{
         LyricWriter{
-            song: Song { lyrics: vec!() },
+            song: Song { lyrics: None },
             index: None,
         }
     }
