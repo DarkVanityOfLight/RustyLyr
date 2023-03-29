@@ -112,11 +112,12 @@ async fn handle_websocket(websocket: warp::ws::WebSocket, lyric_writer: &mut Lyr
     
     while let Some(result) = rx.next().await {
         let message = result?;
-        match serde_json::from_str::<Song>(message.to_str().unwrap()){
-            Ok(song) => lyric_writer.set_song(song),
-            Err(_) => match serde_json::from_str::<Time>(message.to_str().unwrap()) {
-                Ok(time) => lyric_writer.output_lyrics(time),
-                Err(err) => println!("Unknown message type: {:?}, {:?}", message, err),
+        
+        match serde_json::from_str::<Time>(message.to_str().unwrap()) {
+            Ok(time) => lyric_writer.output_lyrics(time),
+            Err(_) => match serde_json::from_str::<Song>(message.to_str().unwrap()){
+                Ok(song) => lyric_writer.set_song(song),
+                Err(err) => println!("Unknown message type: {:?}, {:?}", message, err)
             }
         }
     }
