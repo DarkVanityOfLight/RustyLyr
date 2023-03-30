@@ -1,5 +1,5 @@
 use warp::{Filter, ws};
-use futures::{StreamExt};
+use futures::{StreamExt, SinkExt};
 use serde::{Deserialize, Serialize};
 
 
@@ -77,7 +77,7 @@ impl Writer for LyricWriter {
                     let current_index = lyrics.iter().position(|lyrics| lyrics.time >= line.time).unwrap_or_default();
                     if self.index != Some(current_index) {
                         self.index = Some(current_index);
-                        println!("{:?}", line.to_line());
+                        println!("{}", line.to_line());
                     }
                 } 
             }
@@ -117,16 +117,21 @@ async fn main() {
 
 async fn handle_websocket(websocket: warp::ws::WebSocket, lyric_writer: &mut LyricWriter) -> Result<(), Box<dyn std::error::Error>> {
     println!("Client connected");
-    let (_, mut rx) = websocket.split();
+    let (mut tx, mut rx) = websocket.split();
     
     while let Some(result) = rx.next().await {
         let message = result?;
+        let str_message = match message.to_str() {
+            Ok(s) => s,
+            Err(_) => "{lyrics: null}"
+        };
         
-        match serde_json::from_str::<Time>(message.to_str().unwrap()) {
+        match serde_json::from_str::<Time>(str_message) {
             Ok(time) => lyric_writer.output_lyrics(time),
-            Err(_) => match serde_json::from_str::<Song>(message.to_str().unwrap()){
+            Err(_) => match serde_json::from_str::<Song>(str_message){
                 Ok(song) => lyric_writer.set_song(song),
-                Err(err) => println!("Unknown message type: {:?}, {:?}", message, err)
+                Err(err) => if message.is_close() { tx.close().await? } 
+                            else { println!("Unknown message type: {:?}, {:?}", message, err); }
             }
         }
     }
