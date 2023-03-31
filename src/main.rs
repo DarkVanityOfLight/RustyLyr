@@ -47,6 +47,23 @@ trait Writer {
     fn output_lyrics(&mut self, time: Time);
 }
 
+
+fn pad_or_trim_string(s: &str, length: usize) -> String {
+    let s_len = s.chars().count();
+    if s_len >= length {
+        // Trim the string
+        s.chars().take(length).collect()
+    } else {
+        // Pad the string
+        let padding = length - s_len;
+        let pad_left = padding / 2;
+        let pad_right = padding - pad_left;
+        let left_padding = " ".repeat(pad_left);
+        let right_padding = " ".repeat(pad_right);
+        format!("{}{}{}", left_padding, s, right_padding)
+    }
+}
+
 impl Writer for LyricWriter {
     fn set_song(&mut self, song: Song){
         self.index = None;
@@ -79,7 +96,11 @@ impl Writer for LyricWriter {
                     let current_index = lyrics.iter().position(|lyrics| lyrics.time >= line.time).unwrap_or_default();
                     if self.index != Some(current_index) {
                         self.index = Some(current_index);
-                        println!("{}", line.to_line());
+                        let line = match self.output_size {
+                            None => line.to_line(),
+                            Some(size) => pad_or_trim_string(&line.to_line(), size)
+                        };
+                        println!("{}", line);
                     }
                 } 
             }
@@ -126,7 +147,7 @@ async fn main() {
             })
         });
     
-    let routes = ws_route.or(warp::any().map(|| "Hello, world!"));
+    let routes = ws_route;
     
     warp::serve(routes).run(([127, 0, 0, 1], cli.port)).await;
 }
