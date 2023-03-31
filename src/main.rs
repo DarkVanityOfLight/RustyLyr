@@ -1,7 +1,7 @@
 use warp::{Filter, ws};
 use futures::{StreamExt, SinkExt};
 use serde::{Deserialize, Serialize};
-
+use clap::Parser;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Lyrics {
@@ -38,6 +38,8 @@ struct Time {
 struct LyricWriter {
     song: Song,
     index: Option<usize>,
+    no_lyrics_message: String,
+    output_size: Option<usize>
 }
 
 trait Writer {
@@ -57,7 +59,7 @@ impl Writer for LyricWriter {
         match &self.song.lyrics {
             None => match self.index {
                 Some(_) => return,
-                None => { println!("No Lyrics found"); self.index = Some(1); return }
+                None => { println!("{}", self.no_lyrics_message); self.index = Some(1); return }
             },
             Some(lyrics) => {
                 let t = time.time;
@@ -86,21 +88,35 @@ impl Writer for LyricWriter {
 }
 
 impl LyricWriter {
-    fn new() -> Self{
+    fn new(output_size: Option<usize>, no_lyrics_message: Option<String>) -> Self{
         LyricWriter{
             song: Song { lyrics: None },
             index: None,
+            output_size: output_size,
+            no_lyrics_message: no_lyrics_message.unwrap_or("No Lyrics found ;(".to_string())
         }
     }
+}
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[arg(short, long, default_value_t = 5001)]
+    port: u16,
+    output_size: Option<usize>,
+    no_lyrics_message: Option<String>
 }
 
 
 #[tokio::main]
 async fn main() {
-    
+
+    let cli = Cli::parse(); 
     let ws_route = ws()
         .map(move |ws: warp::ws::Ws| {
-            let mut lyric_writer = LyricWriter::new();
+            let output_size = cli.output_size;
+            let no_lyrics_message = cli.no_lyrics_message.clone();
+            let mut lyric_writer = LyricWriter::new(output_size, no_lyrics_message);
             ws.on_upgrade(move |websocket| {
                 async move {
                     if let Err(e) = handle_websocket(websocket, &mut lyric_writer).await {
@@ -112,7 +128,7 @@ async fn main() {
     
     let routes = ws_route.or(warp::any().map(|| "Hello, world!"));
     
-    warp::serve(routes).run(([127, 0, 0, 1], 5001)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], cli.port)).await;
 }
 
 async fn handle_websocket(websocket: warp::ws::WebSocket, lyric_writer: &mut LyricWriter) -> Result<(), Box<dyn std::error::Error>> {
