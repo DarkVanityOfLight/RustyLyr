@@ -6,11 +6,10 @@ The server is designed to work with the frontend found at https://github.com/Dar
 ## Dependencies
 
 This program uses the following Rust crates:
-
-    - **warp** for managing WebSocket connections
-    - **futures** for managing asynchronous tasks
-    - **serde** for serializing and deserializing data structures
-    - **clap** for parsing command line arguments
+- **warp** for managing WebSocket connections
+- **futures** for managing asynchronous tasks
+- **serde** for serializing and deserializing data structures
+- **clap** for parsing command line arguments
 
 ## Usage
 
