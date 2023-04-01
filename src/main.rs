@@ -168,37 +168,37 @@ async fn main() {
                 }
             })
         });
-    
+
     let routes = ws_route;
-    
+
     warp::serve(routes).run(([127, 0, 0, 1], cli.port)).await;
 }
 
 async fn handle_websocket(websocket: warp::ws::WebSocket, lyric_writer: &mut LyricWriter) -> Result<(), Box<dyn std::error::Error>> {
     println!("Client connected");
     let (mut tx, mut rx) = websocket.split();
-    
+
     while let Some(result) = rx.next().await {
         let message = result?;
         let str_message = match message.to_str() {
             Ok(s) => s,
             Err(_) => "{lyrics: null}"
         };
-        
+
         match serde_json::from_str::<Time>(str_message) {
             Ok(time) => lyric_writer.output_lyrics(time),
             Err(_) => match serde_json::from_str::<Song>(str_message){
                 Ok(song) => lyric_writer.set_song(SongFormat::Synced(song)),
                 Err(_) => if message.is_close() { tx.close().await? } 
-                            else { 
-                                match serde_json::from_str::<UnsyncedSong>(str_message) {
-                                    Ok(song) => lyric_writer.set_song(SongFormat::Unsynced(song)),
-                                    Err(err) => println!("Unknown message type: {:?}, {:?}", message, err),
-                                }
-                            }
+                else { 
+                    match serde_json::from_str::<UnsyncedSong>(str_message) {
+                        Ok(song) => lyric_writer.set_song(SongFormat::Unsynced(song)),
+                        Err(err) => println!("Unknown message type: {:?}, {:?}", message, err),
+                    }
+                }
             }
         }
     }
-    
+
     Ok(())
 }
