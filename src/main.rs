@@ -147,7 +147,9 @@ struct Cli {
     #[arg(short, long, default_value_t = 5001)]
     port: u16,
     output_size: Option<usize>,
-    no_lyrics_message: Option<String>
+    no_lyrics_message: Option<String>,
+    #[arg(long, default_value_t = false)]
+    debug: bool
 }
 
 
@@ -163,7 +165,9 @@ async fn main() {
             ws.on_upgrade(move |websocket| {
                 async move {
                     if let Err(e) = handle_websocket(websocket, &mut lyric_writer).await {
-                        eprintln!("websocket error: {}", e);
+                        if cli.debug{
+                            eprintln!("websocket error: {}", e);
+                        }
                     }
                 }
             })
