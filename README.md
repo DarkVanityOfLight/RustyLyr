@@ -7,10 +7,10 @@ The server is designed to work with the frontend found at https://github.com/Dar
 
 This program uses the following Rust crates:
 
-    - __warp__ for managing WebSocket connections
-    - __futures__ for managing asynchronous tasks
-    - __serde__ for serializing and deserializing data structures
-    - __clap__ for parsing command line arguments
+    - **warp** for managing WebSocket connections
+    - **futures** for managing asynchronous tasks
+    - **serde** for serializing and deserializing data structures
+    - **clap** for parsing command line arguments
 
 ## Usage
 
