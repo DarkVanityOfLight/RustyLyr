@@ -9,6 +9,11 @@ struct Lyrics {
     words: Vec<Word>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct UnsyncedLyrics {
+    words: Vec<Word>
+}
+
 impl Lyrics {
     fn to_line(&self) -> String {
         let mut line = String::new();
@@ -30,20 +35,25 @@ struct Song {
     lyrics: Option<Vec<Lyrics>>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct UnsyncedSong {
+    lyrics: Vec<UnsyncedLyrics>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct Time {
     time: usize
 }
 
 struct LyricWriter {
-    song: Song,
+    song: SongFormat,
     index: Option<usize>,
     no_lyrics_message: String,
     output_size: Option<usize>
 }
 
 trait Writer {
-    fn set_song(&mut self, song: Song);
+    fn set_song(&mut self, song: SongFormat);
     fn output_lyrics(&mut self, time: Time);
 }
 
@@ -64,54 +74,66 @@ fn pad_or_trim_string(s: &str, length: usize) -> String {
     }
 }
 
+enum SongFormat {
+    Unsynced(UnsyncedSong),
+    Synced(Song)
+}
+
 impl Writer for LyricWriter {
-    fn set_song(&mut self, song: Song){
+    fn set_song(&mut self, song: SongFormat){
         self.index = None;
         self.song = song;
         println!("")
     }
 
     fn output_lyrics(&mut self, time: Time) {
-
-        match &self.song.lyrics {
-            None => match self.index {
+        match &self.song {
+            SongFormat::Unsynced(UnsyncedSong { lyrics: _ }) => match self.index { 
+                None => { println!("This song is unsynced :("); self.index = Some(1); return },
                 Some(_) => return,
-                None => { println!("{}", self.no_lyrics_message); self.index = Some(1); return }
             },
-            Some(lyrics) => {
-                let t = time.time;
-                let mut closest_line: Option<&Lyrics> = None;
+            SongFormat::Synced(Song { lyrics }) => match lyrics {
+                None => match self.index {
+                    Some(_) => return,
+                    None => { println!("{}", self.no_lyrics_message); self.index = Some(1); return }
+                },
+                Some(lyrics) => {
+                    let t = time.time;
+                    let mut closest_line: Option<&Lyrics> = None;
 
-                // Iterate over each lyric line in the song
-                for line in lyrics.iter() {
-                    // If the line's time is greater than the given time, exit the loop
-                    if line.time > t {
-                        break;
+                    // Iterate over each lyric line in the song
+                    for line in lyrics.iter() {
+                        // If the line's time is greater than the given time, exit the loop
+                        if line.time > t {
+                            break;
+                        }
+                        // Otherwise, set this line as the closest so far
+                        closest_line = Some(line);
                     }
-                    // Otherwise, set this line as the closest so far
-                    closest_line = Some(line);
+
+                    if let Some(line) = closest_line {
+                        let current_index = lyrics.iter().position(|lyrics| lyrics.time >= line.time).unwrap_or_default();
+                        if self.index != Some(current_index) {
+                            self.index = Some(current_index);
+                            let line = match self.output_size {
+                                None => line.to_line(),
+                                Some(size) => pad_or_trim_string(&line.to_line(), size)
+                            };
+                            println!("{}", line);
+                        }
+                    } 
                 }
-
-                if let Some(line) = closest_line {
-                    let current_index = lyrics.iter().position(|lyrics| lyrics.time >= line.time).unwrap_or_default();
-                    if self.index != Some(current_index) {
-                        self.index = Some(current_index);
-                        let line = match self.output_size {
-                            None => line.to_line(),
-                            Some(size) => pad_or_trim_string(&line.to_line(), size)
-                        };
-                        println!("{}", line);
-                    }
-                } 
             }
         }
+
     }
+
 }
 
 impl LyricWriter {
     fn new(output_size: Option<usize>, no_lyrics_message: Option<String>) -> Self{
         LyricWriter{
-            song: Song { lyrics: None },
+            song: SongFormat::Synced(Song { lyrics: None }),
             index: None,
             output_size: output_size,
             no_lyrics_message: no_lyrics_message.unwrap_or("No Lyrics found ;(".to_string())
@@ -166,9 +188,14 @@ async fn handle_websocket(websocket: warp::ws::WebSocket, lyric_writer: &mut Lyr
         match serde_json::from_str::<Time>(str_message) {
             Ok(time) => lyric_writer.output_lyrics(time),
             Err(_) => match serde_json::from_str::<Song>(str_message){
-                Ok(song) => lyric_writer.set_song(song),
-                Err(err) => if message.is_close() { tx.close().await? } 
-                            else { println!("Unknown message type: {:?}, {:?}", message, err); }
+                Ok(song) => lyric_writer.set_song(SongFormat::Synced(song)),
+                Err(_) => if message.is_close() { tx.close().await? } 
+                            else { 
+                                match serde_json::from_str::<UnsyncedSong>(str_message) {
+                                    Ok(song) => lyric_writer.set_song(SongFormat::Unsynced(song)),
+                                    Err(err) => println!("Unknown message type: {:?}, {:?}", message, err),
+                                }
+                            }
             }
         }
     }
