@@ -164,7 +164,7 @@ impl Writer for LyricWriter {
                             .unwrap_or_default();
                         */
 
-                        let current_index = find_lyric_line(lyrics, time);
+                        let current_index = find_lyric_line(&lyrics, time);
 
                         if self.index != Some(current_index) {
                             self.index = Some(current_index);
