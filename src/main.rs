@@ -78,6 +78,45 @@ enum SongFormat {
     Synced(Song),
 }
 
+fn find_lyric_line(lyrics: &Vec<Lyrics>, time: Time) -> usize {
+    let mut left = 0;
+    let mut right = lyrics.len() - 1;
+
+    while left < right {
+        let mid = left + (right - left) / 2;
+        if lyrics[mid].time < time.time {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    left
+}
+
+#[test]
+fn test_binary_search() {
+    let mut time = Time { time: 10 };
+
+    let mut lyrics: Vec<Lyrics> = Vec::new();
+    for i in 0..=20 {
+        lyrics.push(Lyrics {
+            time: i,
+            words: Vec::new(),
+        })
+    }
+
+    println!("{:?}", lyrics);
+
+    assert_eq!(find_lyric_line(&lyrics, time), 10);
+    time = Time { time: 0 };
+    assert_eq!(find_lyric_line(&lyrics, time), 0);
+    time = Time { time: 21 };
+    assert_eq!(find_lyric_line(&lyrics, time), 20);
+    time = Time { time: 22 };
+    assert_eq!(find_lyric_line(&lyrics, time), 20);
+}
+
 impl Writer for LyricWriter {
     fn set_song(&mut self, song: SongFormat) {
         self.index = None;
@@ -119,10 +158,14 @@ impl Writer for LyricWriter {
                     }
 
                     if let Some(line) = closest_line {
-                        let current_index = lyrics
+                        /*let current_index = lyrics
                             .iter()
                             .position(|lyrics| lyrics.time >= line.time)
                             .unwrap_or_default();
+                        */
+
+                        let current_index = find_lyric_line(lyrics, time);
+
                         if self.index != Some(current_index) {
                             self.index = Some(current_index);
                             let line = match self.output_size {
