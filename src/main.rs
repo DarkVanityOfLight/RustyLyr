@@ -78,7 +78,7 @@ enum SongFormat {
     Synced(Song),
 }
 
-fn find_lyric_line(lyrics: &Vec<Lyrics>, time: Time) -> usize {
+fn find_lyric_line(lyrics: &Vec<Lyrics>, time: Time) -> Option<usize> {
     let mut left = 0;
     let mut right = lyrics.len() - 1;
 
@@ -91,7 +91,11 @@ fn find_lyric_line(lyrics: &Vec<Lyrics>, time: Time) -> usize {
         }
     }
 
-    left
+    if left > 0 {
+        Some(left - 1)
+    } else {
+        None
+    }
 }
 
 #[test]
@@ -108,13 +112,13 @@ fn test_binary_search() {
 
     println!("{:?}", lyrics);
 
-    assert_eq!(find_lyric_line(&lyrics, time), 10);
+    assert_eq!(find_lyric_line(&lyrics, time), Some(9));
     time = Time { time: 0 };
-    assert_eq!(find_lyric_line(&lyrics, time), 0);
+    assert_eq!(find_lyric_line(&lyrics, time), None);
     time = Time { time: 21 };
-    assert_eq!(find_lyric_line(&lyrics, time), 20);
+    assert_eq!(find_lyric_line(&lyrics, time), Some(19));
     time = Time { time: 22 };
-    assert_eq!(find_lyric_line(&lyrics, time), 20);
+    assert_eq!(find_lyric_line(&lyrics, time), Some(19));
 }
 
 impl Writer for LyricWriter {
@@ -144,36 +148,30 @@ impl Writer for LyricWriter {
                     }
                 },
                 Some(lyrics) => {
-                    let t = time.time;
-                    let mut closest_line: Option<&Lyrics> = None;
+                    // Find the closest line
+                    let current_index = find_lyric_line(&lyrics, time);
+                    let line = match current_index {
+                        Some(index) => Some(lyrics.get(index).unwrap()),
+                        None => None,
+                    };
 
-                    // Iterate over each lyric line in the song
-                    for line in lyrics.iter() {
-                        // If the line's time is greater than the given time, exit the loop
-                        if line.time > t {
-                            break;
-                        }
-                        // Otherwise, set this line as the closest so far
-                        closest_line = Some(line);
-                    }
+                    // If we have a different line then before
+                    if self.index != current_index {
+                        self.index = current_index;
 
-                    if let Some(line) = closest_line {
-                        /*let current_index = lyrics
-                            .iter()
-                            .position(|lyrics| lyrics.time >= line.time)
-                            .unwrap_or_default();
-                        */
+                        // Unwrap the line to a string
+                        let string_line = match line {
+                            Some(l) => l.to_line(),
+                            None => String::from("󰎈"),
+                        };
 
-                        let current_index = find_lyric_line(&lyrics, time);
-
-                        if self.index != Some(current_index) {
-                            self.index = Some(current_index);
-                            let line = match self.output_size {
-                                None => line.to_line(),
-                                Some(size) => pad_or_trim_string(&line.to_line(), size),
-                            };
-                            println!("{}", line);
-                        }
+                        // Trim the line if we have to aka if output_size is set
+                        let beauty_line = match self.output_size {
+                            None => string_line,
+                            Some(size) => pad_or_trim_string(&string_line, size),
+                        };
+                        // Output the line
+                        println!("{}", beauty_line);
                     }
                 }
             },
