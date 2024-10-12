@@ -3,26 +3,23 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use warp::{ws, Filter};
 
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Lyrics {
-    time: usize,
-    words: Vec<Word>,
+    #[serde(rename = "startTimeMs")]
+    time: String,  // Using String because it's a serialized millisecond value, you can convert to usize later
+    words: String, // Adjusted to capture the entire lyrics line as a single string
+}
+
+impl Lyrics {
+    fn to_line(&self) -> String {
+        self.words.clone()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct UnsyncedLyrics {
     words: Vec<Word>,
-}
-
-impl Lyrics {
-    fn to_line(&self) -> String {
-        let mut line = String::new();
-        for word in &self.words {
-            line.push_str(&word.string);
-            line.push(' ');
-        }
-        line.trim().to_string()
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,7 +81,8 @@ fn find_lyric_line(lyrics: &Vec<Lyrics>, time: Time) -> Option<usize> {
 
     while left < right {
         let mid = left + (right - left) / 2;
-        if lyrics[mid].time < time.time {
+        let mid_time: usize = lyrics[mid].time.parse().expect("Invalid time value");
+        if mid_time < time.time {
             left = mid + 1;
         } else {
             right = mid;
